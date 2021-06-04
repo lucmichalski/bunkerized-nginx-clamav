@@ -1,2 +1,3 @@
-# bunkerized-nginx-clamav
-ClamAV plugin for bunkerized-nginx.
+# ClamAV plugin for bunkerized-nginx
+
+TODO

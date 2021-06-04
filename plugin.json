@@ -1,0 +1,9 @@
+{
+	"id": "clamav",
+	"name": "ClamAV",
+	"description": "Scan uploaded files with a remote ClamAV instance and deny access if the file is detected.",
+	"version": "0.1",
+	"settings": {
+		"REMOTE_CLAMAV_REST_API": "http://my-clamav-rest-api:5000"
+	}
+}
