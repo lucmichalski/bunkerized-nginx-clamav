@@ -1,33 +1,28 @@
 local M		= {}
+local parser	= require "clamav.parser"
 local http	= require "resty.http"
+local cjson	= require "cjson"
 local logger	= require "logger"
-local upload	= require "clamav.upload"
 
 function M.check ()
-	-- Check if there is at least a file
-	local form, err = upload:new(4096)
-	if not form then
-		logger.log(ngx.ERR, "CLAMAV", "Error new upload : " .. err)
+	-- Only scan if there is at least one file
+	local body = ngx.req.get_body_data()
+	local p, err = parser.new(body, ngx.var.http_content_type)
+	if not p then
+		logger.log(ngx.ERR, "CLAMAV", "Failed to create parser : " .. err)
 		return
 	end
-	form:set_timeout(1000)
-	local is_file = false
+	local files = {}
 	while true do
-		local typ, res, err = form:read()
-		if not type then
-			logger.log(ngx.ERR, "CLAMAV", "Error read form : " .. err)
-			return
+		local part_body, name, mime, filename = p:parse_part()
+		if not part_body then
+			break
 		end
-		-- Is it a header containing filename= ?
-		if typ == "header" and string.match(res["Content-Disposition"], "filename=") then
-			is_file = true
-			break
-		-- Is it the end of the form ?
-		elseif typ == "eof" then
-			break
+		if filename ~= nil then
+			table.insert(files, filename)
 		end
 	end
-	if not is_file then
+	if #files == 0 then
 		return
 	end
 
@@ -39,27 +34,44 @@ function M.check ()
 	end
 
 	-- Forward to API
+	for i, file in ipairs(files) do
+		body = string.gsub(body, file, "FILES")	
+	end
 	local httpc = http.new()
-	local res, err = httpc:request_uri(remote_clamav_rest_api .. "/scan", {
+	local res, err = httpc:request_uri(remote_clamav_rest_api .. "/api/v1/scan", {
 		method = "POST",
-		body = ngx.req.get_body_data(),
-		headers = ngx.req.get_headers()
+		body = body,
+		headers = { ["Content-Type"] = ngx.var.http_content_type }
 	})
 	if not res then
 		logger.log(ngx.ERR, "CLAMAV", "Error while sending request to " .. remote_clamav_rest_api)
 		return
 	end
-	if res.status ~= "200" then
+	if res.status ~= 200 then
 		logger.log(ngx.ERR, "CLAMAV", "Wrong status code from API : " .. res.status)
 		return
 	end
 
 	-- Infected or not ?
-	if not string.match(res.body, "Everything ok : true") then
-		logger.log(ngx.WARN, "CLAMAV", "Detected infected file(s) : " .. res.body)
+	local result = cjson.decode(res.body)
+	if not result.success then
+		logger.log(ngx.ERR, "CLAMAV", "API call failed (success = false)")
+		return
+	end
+	local infected = false
+	for i, report in ipairs(result.data.result) do
+		if report.is_infected then
+			infected = true
+			for j, virus in ipairs(report.viruses) do
+				logger.log(ngx.WARN, "CLAMAV", "Detected infected file : " .. virus)
+			end
+		else
+			logger.log(ngx.NOTICE, "CLAMAV", "File " .. report.name .. " is clean")
+		end
+	end
+	if infected then
 		ngx.exit(ngx.HTTP_FORBIDDEN)
 	end
-	logger.log(ngx.NOTICE, "CLAMAV", "Every files are clean !")
 end
 
 return M
