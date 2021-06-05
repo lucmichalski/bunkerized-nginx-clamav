@@ -1,6 +1,20 @@
 # ClamAV plugin for bunkerized-nginx
 
-### Compose example
+Automatically scan uploaded files by sending them to a remote ClamAV instance. If a file is detected the client will receive a 403 Forbidden.
+
+Under the hood, it sends the uploaded file to a REST API : [benzino77/clamav-rest-api](https://github.com/benzino77/clamav-rest-api). And the REST API uses an external ClamAV instance through the network.
+
+## Install
+
+```shell
+git clone https://github.com/bunkerity/bunkerized-nginx-clamav.git
+```
+
+## Settings
+
+- `REMOTE_CLAMAV_REST_API` : base URI of the ClamAV REST API
+
+## Compose example
 
 ```yaml
 version: '3'
