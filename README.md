@@ -26,7 +26,7 @@ services:
       - 80:8080
     volumes:
       - ./web-files:/www:ro
-      - ./plugins/clamav:/plugins/clamav:ro
+      - ./bunkerized-nginx-clamav:/plugins/clamav:ro
     environment:
       - SERVER_NAME=www.website.com # replace with your domain
       - USE_CLIENT_CACHE=yes
